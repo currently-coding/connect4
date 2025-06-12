@@ -1,6 +1,6 @@
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
-use std::{clone, panic};
+use std::panic;
 
 #[derive(Clone)]
 pub struct Board {
@@ -15,11 +15,12 @@ pub const ROWS: u8 = 6;
 
 impl Board {
     pub fn new() -> Self {
+        println!("Creating new Board.");
         Board {
             board: [0, 0],
             active: 0,
             hash: 0,
-            zobrist_table: [[0u64; (COLS * (ROWS + 1)) as usize]; 2],
+            zobrist_table: init_zobrist_table(),
         }
     }
 
@@ -44,7 +45,7 @@ impl Board {
         }
         let square = COLS * col + fill;
         self.hash ^= self.zobrist_table[self.active][square as usize];
-        let target_mask: u64 = 1u64 << (COLS * col + fill);
+        let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
     }
 
@@ -57,23 +58,6 @@ impl Board {
         self.hash ^= self.zobrist_table[self.active][square as usize];
         let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
-    }
-    /// initializes zobrist table of this [`Board`].
-    fn init_zobrist_table(&mut self) {
-        let seed: [u8; 32] = [42; 32];
-        let mut rng = ChaChaRng::from_seed(seed);
-        for side in self.zobrist_table.iter_mut() {
-            for square in 0..side.len() {
-                if square > 28 {
-                    side[square] = side[square - 14];
-                } else if square > 35 {
-                    side[square] = side[square - 28];
-                } else if square > 42 {
-                    side[square] = side[square - 35];
-                }
-                side[square] = rng.next_u64();
-            }
-        }
     }
 
     pub fn print(&self) {
@@ -122,7 +106,7 @@ impl Board {
         fill
     }
 
-    pub(crate) fn get_moves(&self) -> Vec<u8> {
+    pub fn get_moves(&self) -> Vec<u8> {
         let mut moves = Vec::new();
         for col in 0..7 {
             if self.get_col_fill(col) != ROWS {
@@ -131,6 +115,26 @@ impl Board {
         }
         moves
     }
+}
+
+fn init_zobrist_table() -> [[u64; (COLS * (ROWS + 1)) as usize]; 2] {
+    let seed: [u8; 32] = [0; 32];
+    let mut result = [[0u64; (COLS * (ROWS + 1)) as usize]; 2];
+    let mut rng = ChaChaRng::from_seed(seed);
+    for side in result.iter_mut() {
+        for square in 0..side.len() {
+            if square >= 42 {
+                side[square] = side[square - 42];
+            } else if square >= 35 {
+                side[square] = side[square - 28];
+            } else if square >= 28 {
+                side[square] = side[square - 14];
+            } else {
+                side[square] = rng.next_u64();
+            }
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -208,14 +212,28 @@ mod tests {
     }
 
     #[test]
-    fn test_symmetrical_zobrist() {
+    fn test_symmetrical_zobrist_moves() {
         let mut board = Board::new();
-        board.make_move(2);
-        board.make_move(3);
         let hash1 = board.hash;
-        board.unmake_move(2);
-        board.make_move(4);
-        assert_eq!(board.hash, hash1);
+        board.make_move(0);
+        let bb = board.board[0];
+        let hash2 = board.hash;
+        board.unmake_move(0);
+        assert_eq!(hash1, board.hash);
+        board.make_move(6);
+        println!("{:064b}", board.board[0]);
+        println!("{:064b}", bb);
+        assert_eq!(board.hash, hash2);
+    }
+
+    #[test]
+    fn test_symmetrical_zobrist_squares() {
+        let board = Board::new();
+        assert_eq!(board.zobrist_table[0][29], board.zobrist_table[0][15]);
+        assert_eq!(board.zobrist_table[0][38], board.zobrist_table[0][10]);
+        assert_eq!(board.zobrist_table[0][38], board.zobrist_table[0][10]);
+        assert_eq!(board.zobrist_table[0][43], board.zobrist_table[0][1]);
+        assert_eq!(board.zobrist_table[0][42], board.zobrist_table[0][0]);
     }
 
     #[test]
@@ -248,7 +266,6 @@ mod tests {
         board.make_move(3);
         board.make_move(1);
         board.make_move(0);
-        board.print();
         assert!(board.game_over());
     }
 }
