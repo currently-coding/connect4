@@ -3,6 +3,7 @@ use std::panic;
 pub struct Board {
     pub board: [u64; 2], // just need 42 bits
     pub active: usize,
+    pub moves: [u8; 7],
 }
 
 pub const COLS: u8 = 7;
@@ -13,6 +14,7 @@ impl Board {
         Board {
             board: [0, 0],
             active: 0,
+            moves: [0, 1, 2, 3, 4, 5, 6],
         }
     }
 
@@ -32,7 +34,7 @@ impl Board {
 
     fn put(&mut self, col: u8) {
         let fill = self.get_col_fill(col);
-        if fill == 6 {
+        if fill == ROWS {
             panic!("cannot put piece into full column");
         }
         let target_mask: u64 = 1u64 << (COLS * col + fill);
@@ -68,7 +70,7 @@ impl Board {
     }
 
     pub fn game_over(&self) -> bool {
-        let bb = self.board[self.active];
+        let bb = self.board[self.active ^ 1];
         // vertical
         (bb & bb << 8 & bb << 16 & bb << 24) > 0
         // horizontal
@@ -80,7 +82,7 @@ impl Board {
     }
 
     fn get_col_fill(&self, col: u8) -> u8 {
-        if !(0..=6).contains(&col) {
+        if !(0..=ROWS).contains(&col) {
             panic!("Column out of range.")
         }
         let mask: u64 = 0b0111111u64 << (col * COLS);
@@ -94,15 +96,14 @@ impl Board {
         fill
     }
 
-    pub(crate) fn get_moves(&self, moves: &mut [u8; COLS as usize]) -> usize {
-        let mut idx = 0;
+    pub(crate) fn get_moves(&self) -> Vec<u8> {
+        let mut moves = Vec::new();
         for col in 0..7 {
-            if self.get_col_fill(col) != 6 {
-                moves[idx] = col;
-                idx += 1;
+            if self.get_col_fill(col) != ROWS {
+                moves.push(col);
             }
         }
-        idx
+        moves
     }
 }
 
