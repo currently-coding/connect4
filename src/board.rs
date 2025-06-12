@@ -1,9 +1,13 @@
-use std::panic;
+use rand::{RngCore, SeedableRng};
+use rand_chacha::ChaChaRng;
+use std::{clone, panic};
 
+#[derive(Clone)]
 pub struct Board {
     pub board: [u64; 2], // just need 42 bits
     pub active: usize,
-    pub moves: [u8; 7],
+    pub hash: u64,
+    zobrist_table: [[u64; (COLS * (ROWS + 1)) as usize]; 2],
 }
 
 pub const COLS: u8 = 7;
@@ -14,7 +18,8 @@ impl Board {
         Board {
             board: [0, 0],
             active: 0,
-            moves: [0, 1, 2, 3, 4, 5, 6],
+            hash: 0,
+            zobrist_table: [[0u64; (COLS * (ROWS + 1)) as usize]; 2],
         }
     }
 
@@ -37,6 +42,8 @@ impl Board {
         if fill == ROWS {
             panic!("cannot put piece into full column");
         }
+        let square = COLS * col + fill;
+        self.hash ^= self.zobrist_table[self.active][square as usize];
         let target_mask: u64 = 1u64 << (COLS * col + fill);
         self.board[self.active] ^= target_mask;
     }
@@ -46,8 +53,27 @@ impl Board {
         if fill == 0 {
             panic!("cannot remove piece from empty column");
         }
-        let target_mask: u64 = 1u64 << (COLS * col + fill - 1);
+        let square = COLS * col + fill - 1;
+        self.hash ^= self.zobrist_table[self.active][square as usize];
+        let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
+    }
+    /// initializes zobrist table of this [`Board`].
+    fn init_zobrist_table(&mut self) {
+        let seed: [u8; 32] = [42; 32];
+        let mut rng = ChaChaRng::from_seed(seed);
+        for side in self.zobrist_table.iter_mut() {
+            for square in 0..side.len() {
+                if square > 28 {
+                    side[square] = side[square - 14];
+                } else if square > 35 {
+                    side[square] = side[square - 28];
+                } else if square > 42 {
+                    side[square] = side[square - 35];
+                }
+                side[square] = rng.next_u64();
+            }
+        }
     }
 
     pub fn print(&self) {
@@ -172,16 +198,41 @@ mod tests {
     }
 
     #[test]
+    fn test_zobrist_make_unmake() {
+        let mut board = Board::new();
+        board.board[board.active] = 0b1111 << 13;
+        let copy = board.hash;
+        board.make_move(5);
+        board.unmake_move(5);
+        assert_eq!(board.hash, copy);
+    }
+
+    #[test]
+    fn test_symmetrical_zobrist() {
+        let mut board = Board::new();
+        board.make_move(2);
+        board.make_move(3);
+        let hash1 = board.hash;
+        board.unmake_move(2);
+        board.make_move(4);
+        assert_eq!(board.hash, hash1);
+    }
+
+    #[test]
     fn test_game_over() {
         let mut board = Board::new();
         for _ in 0..4 {
             board.put(2);
         }
+        // end move by switching sides - usually make_move handles that
+        board.active ^= 1;
         assert!(board.game_over());
         let mut board = Board::new();
         for a in 0..4 {
             board.put(a);
         }
+        // end move by switching sides - usually make_move handles that
+        board.active ^= 1;
         assert!(board.game_over());
         let mut board = Board::new();
         board.make_move(0);
@@ -196,6 +247,7 @@ mod tests {
         board.make_move(3);
         board.make_move(3);
         board.make_move(1);
+        board.make_move(0);
         board.print();
         assert!(board.game_over());
     }

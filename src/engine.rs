@@ -1,9 +1,9 @@
-use crate::board::Board;
-
+use crate::board::{Board, COLS, ROWS};
 pub struct Engine {
     depth: u8,
     max: i16,
     min: i16,
+    pub score: i16,
     pub prune_counter: u32,
     pub visited_counter: u32,
 }
@@ -14,6 +14,7 @@ impl Engine {
             depth,
             max: 10000,
             min: -10000,
+            score: 0,
             prune_counter: 0,
             visited_counter: 0,
         }
@@ -41,6 +42,8 @@ impl Engine {
                 return m;
             }
         }
+        self.score = best_score;
+        println!("Score: {}", self.score);
         best_move
     }
 
@@ -53,7 +56,12 @@ impl Engine {
         maximizing: bool,
     ) -> i16 {
         if board.game_over() {
-            return self.max - (self.depth - depth) as i16;
+            let value = self.max - (self.depth - depth) as i16;
+            if maximizing {
+                return value;
+            } else {
+                return -value;
+            }
         } else if depth == 0 {
             return 0;
         }
