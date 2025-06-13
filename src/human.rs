@@ -1,5 +1,7 @@
 use std::io::{self, Write};
 
+use crate::board::Board;
+
 pub struct Human {}
 
 impl Human {
@@ -7,7 +9,7 @@ impl Human {
         Self {}
     }
 
-    pub fn get_move(&self) -> u8 {
+    pub fn get_move(&self, mut board: &Board) -> u8 {
         print!("Choose column: ");
         io::stdout().flush().unwrap(); // Ensure the prompt is printed immediately
 

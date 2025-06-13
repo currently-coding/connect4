@@ -6,8 +6,8 @@ use std::panic;
 pub struct Board {
     pub board: [u64; 2], // just need 42 bits
     pub active: usize,
-    pub hash: u64,
-    zobrist_table: [[u64; (COLS * (ROWS + 1)) as usize]; 2],
+    pub hash: u32,
+    zobrist_table: [[u32; (COLS * (ROWS + 1)) as usize]; 2],
 }
 
 pub const COLS: u8 = 7;
@@ -24,9 +24,12 @@ impl Board {
         }
     }
 
-    pub fn make_move(&mut self, col: u8) {
-        self.put(col);
+    pub fn make_move(&mut self, col: u8) -> u8 {
+        if self.put(col) == 0 {
+            return 0;
+        }
         self.active ^= 1;
+        1
     }
 
     pub fn occupancy(&self) -> u64 {
@@ -38,15 +41,16 @@ impl Board {
         self.remove(col);
     }
 
-    fn put(&mut self, col: u8) {
+    fn put(&mut self, col: u8) -> u8 {
         let fill = self.get_col_fill(col);
         if fill == ROWS {
-            panic!("cannot put piece into full column");
+            return 0;
         }
         let square = COLS * col + fill;
         self.hash ^= self.zobrist_table[self.active][square as usize];
         let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
+        1
     }
 
     fn remove(&mut self, col: u8) {
@@ -62,7 +66,7 @@ impl Board {
 
     pub fn print(&self) {
         let mut tile;
-        for row in (0..COLS).rev() {
+        for row in (0..COLS - 1).rev() {
             for col in 0..COLS {
                 tile = COLS * col + row;
                 let mask = 1u64 << tile;
@@ -108,7 +112,7 @@ impl Board {
 
     pub fn get_moves(&self) -> Vec<u8> {
         let mut moves = Vec::new();
-        for col in 0..7 {
+        for col in [3, 2, 4, 1, 5, 0, 6] {
             if self.get_col_fill(col) != ROWS {
                 moves.push(col);
             }
@@ -117,9 +121,9 @@ impl Board {
     }
 }
 
-fn init_zobrist_table() -> [[u64; (COLS * (ROWS + 1)) as usize]; 2] {
+fn init_zobrist_table() -> [[u32; (COLS * (ROWS + 1)) as usize]; 2] {
     let seed: [u8; 32] = [0; 32];
-    let mut result = [[0u64; (COLS * (ROWS + 1)) as usize]; 2];
+    let mut result = [[0u32; (COLS * (ROWS + 1)) as usize]; 2];
     let mut rng = ChaChaRng::from_seed(seed);
     for side in result.iter_mut() {
         for square in 0..side.len() {
@@ -130,7 +134,7 @@ fn init_zobrist_table() -> [[u64; (COLS * (ROWS + 1)) as usize]; 2] {
             } else if square >= 28 {
                 side[square] = side[square - 14];
             } else {
-                side[square] = rng.next_u64();
+                side[square] = rng.next_u32();
             }
         }
     }
@@ -267,5 +271,23 @@ mod tests {
         board.make_move(1);
         board.make_move(0);
         assert!(board.game_over());
+    }
+
+    #[test]
+    fn test_invalid_moves() {
+        let mut board = Board::new();
+        for _ in 0..6 {
+            board.make_move(3);
+            board.make_move(1);
+        }
+        board.unmake_move(1);
+        board.print();
+        let bb = board.board;
+        let active = board.active;
+        let hash = board.hash;
+        board.make_move(3);
+        assert_eq!(board.active, active);
+        assert_eq!(board.hash, hash);
+        assert_eq!(board.board, bb);
     }
 }
