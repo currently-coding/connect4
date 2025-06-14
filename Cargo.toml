@@ -9,7 +9,7 @@ rand_chacha = "0.9.0"
 nohash-hasher = "0.2.0"
 
 [profile.dev]
-opt-level = 3 # slight optimizations
+opt-level = 1 # slight optimizations
 
 [profile.release]
 opt-level = 3 # maximum optimizations

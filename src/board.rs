@@ -166,10 +166,21 @@ mod tests {
     #[test]
     fn test_zobrist_make_unmake() {
         let mut board = Board::new();
-        board.board[board.active] = 0b1111 << 13;
-        let copy = board.hash;
+        let mut copy;
+        copy = board.hash;
         board.make_move(5);
         board.unmake_move(5);
+        assert_eq!(board.hash, copy);
+        copy = board.hash;
+        board.make_move(6);
+        board.make_move(6);
+        board.unmake_move(6);
+        board.unmake_move(6);
+        assert_eq!(board.hash, copy);
+        board.make_move(1);
+        copy = board.hash;
+        board.make_move(1);
+        board.unmake_move(1);
         assert_eq!(board.hash, copy);
     }
 

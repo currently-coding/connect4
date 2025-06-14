@@ -10,10 +10,24 @@ mod board;
 fn main() {
     let mut board = Board::new();
     // board.print();
-    let mut p1 = Engine::new(20);
-    // let mut p2 = Engine::new(18);
-    // let p2 = Human::new();
+    let mut p1 = Engine::new(16);
+    // let mut p2 = Engine::new(24);
+    let p2 = Human::new();
     let mut m;
+    // board.make_move(3);
+    // board.make_move(3);
+    // board.make_move(3);
+    // board.make_move(2);
+    // board.make_move(2);
+    // board.make_move(4);
+    // board.make_move(4);
+    // board.make_move(5);
+    // board.make_move(4);
+    // board.make_move(1);
+    // board.make_move(4);
+    // board.make_move(4);
+    // board.make_move(3);
+    // board.make_move(3);
     m = p1.get_move(&mut board);
     board.make_move(m);
     // loop {
@@ -33,12 +47,13 @@ fn main() {
     //         break;
     //     }
     // }
-    // board.print();
+    board.print();
     println!("Summary:");
     println!("\tP1:");
     println!("\t\tVisited: {}", p1.visited_counter);
     println!("\t\tPruned:  {}", p1.prune_counter);
     println!("\t\tTT-table:{}", p1.tt_counter);
+    println!("\t\tTT-table:{}", p1.seen_order.len());
     // println!("\tP2:");
     // println!("\t\tVisited: {}", p2.visited_counter);
     // println!("\t\tPruned:  {}", p2.prune_counter);

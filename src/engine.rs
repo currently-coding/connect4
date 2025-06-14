@@ -9,12 +9,12 @@ pub struct Engine {
     pub tt_counter: u32,
     pub visited_counter: u32,
     pub seen: HashMap<u32, TTEntry, BuildNoHashHasher<u32>>,
-    seen_order: VecDeque<u32>,
+    pub seen_order: VecDeque<u32>,
     max: i8,
     seen_size: u64,
 }
 pub const MAX_MOVES: u8 = 42;
-pub const MAX_TABLE_SIZE: u64 = 9_000_000;
+pub const MAX_TABLE_SIZE: u64 = 10_000_000;
 
 impl Engine {
     pub fn new(depth: u8) -> Self {
@@ -64,10 +64,9 @@ impl Engine {
             self.tt_counter += 1;
             let ttflag = ttentry.flag();
             let ttscore = ttentry.score();
-            if ttentry.depth() >= depth
-                && (ttflag == 0
-                    || ttflag == -1 && ttscore >= beta
-                    || ttflag == 1 && ttscore <= alpha)
+            if ttentry.depth() >= depth && (ttflag == 0)
+            // || ((ttflag == -1) && (ttscore >= beta))
+            // || ((ttflag == 1) && (ttscore <= alpha)))
             {
                 return ttscore;
             }
@@ -81,6 +80,7 @@ impl Engine {
         }
 
         let original_alpha = alpha;
+
         for m in Engine::MOVES {
             if !board.make_move(m) {
                 continue;
@@ -91,15 +91,14 @@ impl Engine {
             alpha = alpha.max(score);
             if alpha >= beta {
                 self.prune_counter += 1;
-                // prunes WAYY too often
                 break;
             }
         }
         let score = alpha;
-        let flag: i8 = if score <= original_alpha {
-            1
-        } else if score >= beta {
+        let flag: i8 = if score >= beta {
             -1
+        } else if score <= original_alpha {
+            1
         } else {
             0
         };
@@ -118,11 +117,15 @@ impl Engine {
 
     fn insert_tt(&mut self, hash: u32, entry: TTEntry) {
         if self.seen_size >= MAX_TABLE_SIZE {
-            for _ in 0..1000 {
+            let batch = 5000;
+            for _ in 0..batch {
                 self.seen.remove(&self.seen_order[0]);
                 self.seen_order.pop_front();
             }
+            self.seen_size -= batch;
         }
+        self.seen_size += 1;
         self.seen.insert(hash, entry);
+        self.seen_order.push_back(hash);
     }
 }
