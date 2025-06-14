@@ -8,6 +8,7 @@ pub struct Board {
     pub active: usize,
     pub hash: u32,
     zobrist_table: [[u32; (COLS * (ROWS + 1)) as usize]; 2],
+    pub col_height: [u8; COLS as usize],
 }
 
 pub const COLS: u8 = 7;
@@ -21,6 +22,7 @@ impl Board {
             active: 0,
             hash: 0,
             zobrist_table: init_zobrist_table(),
+            col_height: [0u8; COLS as usize],
         }
     }
 
@@ -42,7 +44,7 @@ impl Board {
     }
 
     fn put(&mut self, col: u8) -> u8 {
-        let fill = self.get_col_fill(col);
+        let fill = self.col_height[col as usize];
         if fill == ROWS {
             return 0;
         }
@@ -50,11 +52,12 @@ impl Board {
         self.hash ^= self.zobrist_table[self.active][square as usize];
         let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
+        self.col_height[col as usize] += 1;
         1
     }
 
     fn remove(&mut self, col: u8) {
-        let fill = self.get_col_fill(col);
+        let fill = self.col_height[col as usize];
         if fill == 0 {
             panic!("cannot remove piece from empty column");
         }
@@ -62,6 +65,7 @@ impl Board {
         self.hash ^= self.zobrist_table[self.active][square as usize];
         let target_mask: u64 = 1u64 << square;
         self.board[self.active] ^= target_mask;
+        self.col_height[col as usize] -= 1;
     }
 
     pub fn print(&self) {
@@ -83,8 +87,13 @@ impl Board {
         }
     }
 
-    pub fn game_over(&self) -> bool {
-        let bb = self.board[self.active ^ 1];
+    pub fn draw(&self) -> bool {
+        self.occupancy() >= 0b0111111011111101111110111111011111101111110111111u64
+    }
+
+    pub fn game_over(&self, side: usize) -> bool {
+        // undo active switch by make_move
+        let bb = self.board[side];
         // vertical
         (bb & bb << 8 & bb << 16 & bb << 24) > 0
         // horizontal
@@ -95,30 +104,30 @@ impl Board {
         || (bb & bb << 6 & bb << 12 & bb << 18) > 0
     }
 
-    fn get_col_fill(&self, col: u8) -> u8 {
-        if !(0..=ROWS).contains(&col) {
-            panic!("Column out of range.")
-        }
-        let mask: u64 = 0b0111111u64 << (col * COLS);
-        let mut bb: u64 = self.occupancy();
-        bb &= mask;
-        let leading_zeros = bb.leading_zeros();
-        if leading_zeros == 64 {
-            return 0;
-        }
-        let fill: u8 = (64 - leading_zeros - bb.trailing_zeros()) as u8;
-        fill
-    }
-
-    pub fn get_moves(&self) -> Vec<u8> {
-        let mut moves = Vec::new();
-        for col in [3, 2, 4, 1, 5, 0, 6] {
-            if self.get_col_fill(col) != ROWS {
-                moves.push(col);
-            }
-        }
-        moves
-    }
+    // fn get_col_fill(&self, col: u8) -> u8 {
+    //     if !(0..=ROWS).contains(&col) {
+    //         panic!("Column out of range.")
+    //     }
+    //     let mask: u64 = 0b0111111u64 << (col * COLS);
+    //     let mut bb: u64 = self.occupancy();
+    //     bb &= mask;
+    //     let leading_zeros = bb.leading_zeros();
+    //     if leading_zeros == 64 {
+    //         return 0;
+    //     }
+    //     let fill: u8 = (64 - leading_zeros - bb.trailing_zeros()) as u8;
+    //     fill
+    // }
+    //
+    // pub fn get_moves(&self) -> Vec<u8> {
+    //     let mut moves = Vec::new();
+    //     for col in [3, 2, 4, 1, 5, 0, 6] {
+    //         if self.get_col_fill(col) != ROWS {
+    //             moves.push(col);
+    //         }
+    //     }
+    //     moves
+    // }
 }
 
 fn init_zobrist_table() -> [[u32; (COLS * (ROWS + 1)) as usize]; 2] {
@@ -144,30 +153,6 @@ fn init_zobrist_table() -> [[u32; (COLS * (ROWS + 1)) as usize]; 2] {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_col_fill() {
-        let mut board = Board::new();
-        assert_eq!(board.get_col_fill(0), 0);
-        assert_eq!(board.get_col_fill(1), 0);
-        assert_eq!(board.get_col_fill(2), 0);
-        assert_eq!(board.get_col_fill(3), 0);
-        assert_eq!(board.get_col_fill(4), 0);
-        assert_eq!(board.get_col_fill(5), 0);
-        board.board[0] = 7;
-        assert_eq!(board.get_col_fill(0), 3);
-        board.board[0] = 0b11110111111;
-        println!("{:064b}", board.board[0]);
-        assert_eq!(board.get_col_fill(1), 4);
-        board.board[0] = 0b1111 << 7;
-        println!("{:064b}", board.board[0]);
-        assert_eq!(board.get_col_fill(1), 4);
-        board.board[0] = u64::MAX;
-        assert_eq!(board.get_col_fill(2), 6);
-        assert_eq!(board.get_col_fill(4), 6);
-        assert_eq!(board.get_col_fill(6), 6);
-        assert_eq!(board.get_col_fill(0), 6);
-    }
 
     #[test]
     fn test_put() {
@@ -248,14 +233,14 @@ mod tests {
         }
         // end move by switching sides - usually make_move handles that
         board.active ^= 1;
-        assert!(board.game_over());
+        assert!(board.game_over(board.active));
         let mut board = Board::new();
         for a in 0..4 {
             board.put(a);
         }
         // end move by switching sides - usually make_move handles that
         board.active ^= 1;
-        assert!(board.game_over());
+        assert!(board.game_over(board.active));
         let mut board = Board::new();
         board.make_move(0);
         board.make_move(1);
@@ -270,7 +255,7 @@ mod tests {
         board.make_move(3);
         board.make_move(1);
         board.make_move(0);
-        assert!(board.game_over());
+        assert!(board.game_over(board.active));
     }
 
     #[test]

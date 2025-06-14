@@ -9,7 +9,8 @@ impl Human {
         Self {}
     }
 
-    pub fn get_move(&self, mut board: &Board) -> u8 {
+    pub fn get_move(&self, board: &Board) -> u8 {
+        board.print();
         print!("Choose column: ");
         io::stdout().flush().unwrap(); // Ensure the prompt is printed immediately
 

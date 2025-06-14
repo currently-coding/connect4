@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct TTEntry {
     data: u16,
 }
@@ -12,7 +13,6 @@ impl TTEntry {
     }
 
     pub fn score(&self) -> i8 {
-        // bits 0-6: 6-bit magnitude, 1-bit sign (bit 6)
         let raw = self.data & 0b0111_1111;
         let magnitude = (raw & 0b0011_1111) as i8;
         let sign_bit = (raw & 0b0100_0000) != 0;
@@ -118,4 +118,3 @@ mod tests {
         assert_eq!(entry.flag(), 1);
     }
 }
-
