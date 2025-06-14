@@ -41,7 +41,7 @@ impl Engine {
         let mut best_move = 0;
         let mut best_score = -self.max;
         for m in Engine::MOVES {
-            if board.make_move(m) == 0 {
+            if !board.make_move(m) {
                 continue;
             }
             let score: i8 = -self.negamax(board, -self.max, self.max, self.depth - 1);
@@ -76,13 +76,13 @@ impl Engine {
             return self.max - (self.depth - depth) as i8;
         } else if board.game_over(board.active ^ 1) {
             return -(self.max - (self.depth - depth) as i8);
-        } else if board.draw() {
+        } else if board.full() {
             return 0;
         }
 
         let original_alpha = alpha;
         for m in Engine::MOVES {
-            if board.make_move(m) == 0 {
+            if !board.make_move(m) {
                 continue;
             }
             let score = -self.negamax(board, -beta, -alpha, depth - 1);

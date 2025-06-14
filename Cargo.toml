@@ -7,10 +7,9 @@ edition = "2021"
 rand = "0.9.0"
 rand_chacha = "0.9.0"
 nohash-hasher = "0.2.0"
-lru = "0.14.0"
 
 [profile.dev]
-opt-level = 1 # slight optimizations
+opt-level = 3 # slight optimizations
 
 [profile.release]
 opt-level = 3 # maximum optimizations

@@ -6,12 +6,14 @@ pub struct Board {
     pub board: [u64; 2], // just need 42 bits
     pub active: usize,
     pub hash: u32,
-    zobrist_table: [[u32; (COLS * (ROWS + 1)) as usize]; 2],
+    zobrist_table: [[u32; NUM_CELLS as usize]; 2],
     pub col_height: [u8; COLS as usize],
 }
 
 pub const COLS: u8 = 7;
 pub const ROWS: u8 = 6;
+pub const BOARD_MASK: u64 = 0b0111111011111101111110111111011111101111110111111u64;
+pub const NUM_CELLS: u8 = COLS * (ROWS + 1);
 
 impl Board {
     pub fn new() -> Self {
@@ -25,16 +27,15 @@ impl Board {
         }
     }
 
-    pub fn make_move(&mut self, col: u8) -> u8 {
-        if self.put(col) == 0 {
-            return 0;
-        }
-        self.active ^= 1;
-        1
-    }
-
     pub fn occupancy(&self) -> u64 {
         self.board[0] | self.board[1]
+    }
+    pub fn make_move(&mut self, col: u8) -> bool {
+        if !self.put(col) {
+            return false;
+        }
+        self.active ^= 1;
+        true
     }
 
     pub fn unmake_move(&mut self, col: u8) {
@@ -42,23 +43,23 @@ impl Board {
         self.remove(col);
     }
 
-    fn put(&mut self, col: u8) -> u8 {
-        let fill = &mut self.col_height[col as usize];
-        if *fill == ROWS {
-            return 0;
+    fn put(&mut self, col: u8) -> bool {
+        let fill = self.col_height[col as usize];
+        if fill == ROWS {
+            return false;
         }
-        let square = COLS * col + *fill;
+        self.col_height[col as usize] += 1;
+        let square = COLS * col + fill;
         self.hash ^= self.zobrist_table[self.active][square as usize];
         self.board[self.active] ^= 1u64 << square;
-        *fill += 1;
-        1
+        true
     }
 
     fn remove(&mut self, col: u8) {
-        self.col_height[col as usize] -= 1;
-        let square = COLS * col + self.col_height[col as usize];
+        let square = COLS * col + self.col_height[col as usize] - 1;
         self.hash ^= self.zobrist_table[self.active][square as usize];
         self.board[self.active] ^= 1u64 << square;
+        self.col_height[col as usize] -= 1;
     }
 
     pub fn print(&self) {
@@ -80,21 +81,23 @@ impl Board {
         }
     }
 
-    pub fn draw(&self) -> bool {
-        self.occupancy() >= 0b0111111011111101111110111111011111101111110111111u64
+    pub fn full(&self) -> bool {
+        self.occupancy() >= BOARD_MASK
     }
 
     pub fn game_over(&self, side: usize) -> bool {
-        // undo active switch by make_move
-        let bb = self.board[side];
-        // vertical
-        (bb & bb << 8 & bb << 16 & bb << 24) > 0
-        // horizontal
-        || (bb & bb << 1 & bb << 2 & bb << 3) > 0
-        // left diagonal 
-        || (bb & bb << 7 & bb << 14 & bb << 21) > 0
-        // right diagonal
-        || (bb & bb << 6 & bb << 12 & bb << 18) > 0
+        let b = self.board[side];
+        Self::check_win(b)
+    }
+
+    #[inline]
+    fn check_win(bb: u64) -> bool {
+        const DIRS: [u8; 4] = [1, 6, 7, 8];
+        DIRS.iter().any(|&dir| {
+            let m1 = bb & (bb >> dir);
+            let m2 = m1 & (m1 >> (2 * dir));
+            m2 != 0
+        })
     }
 }
 
@@ -131,11 +134,11 @@ mod tests {
         board.put(0);
         assert_eq!(board.board[0], 0b11);
         board.board[0] = 0b1111 << 14;
-        println!("{:064b}", board.board[0]);
+        board.col_height[2] = 4;
         board.put(2);
-        println!("{:064b}", board.board[0]);
         assert_eq!(board.board[0], 0b11111 << 14);
         board.board[0] = 1u64 << 7;
+        board.col_height[1] = 1;
         board.put(1);
         assert_eq!(board.board[0], 0b11 << 7);
     }
@@ -143,9 +146,11 @@ mod tests {
     #[test]
     fn test_remove() {
         let mut board = Board::new();
-        board.board[0] = 0b1111 << 13;
+        board.put(2);
+        let bb = board.board[0];
+        board.put(2);
         board.remove(2);
-        assert_eq!(board.board[0], 0b111 << 13);
+        assert_eq!(board.board[0], bb);
     }
 
     #[test]
@@ -171,16 +176,14 @@ mod tests {
     #[test]
     fn test_symmetrical_zobrist_moves() {
         let mut board = Board::new();
-        let hash1 = board.hash;
-        board.make_move(0);
-        let bb = board.board[0];
-        let hash2 = board.hash;
-        board.unmake_move(0);
-        assert_eq!(hash1, board.hash);
-        board.make_move(6);
-        println!("{:064b}", board.board[0]);
-        println!("{:064b}", bb);
-        assert_eq!(board.hash, hash2);
+        board.make_move(2);
+        board.print();
+        let hash = board.hash;
+        board.unmake_move(2);
+        board.print();
+        board.make_move(4);
+        board.print();
+        assert_eq!(board.hash, hash);
     }
 
     #[test]
@@ -201,14 +204,14 @@ mod tests {
         }
         // end move by switching sides - usually make_move handles that
         board.active ^= 1;
-        assert!(board.game_over(board.active));
+        assert!(board.game_over(board.active ^ 1));
         let mut board = Board::new();
         for a in 0..4 {
             board.put(a);
         }
         // end move by switching sides - usually make_move handles that
         board.active ^= 1;
-        assert!(board.game_over(board.active));
+        assert!(board.game_over(board.active ^ 1));
         let mut board = Board::new();
         board.make_move(0);
         board.make_move(1);
@@ -223,7 +226,7 @@ mod tests {
         board.make_move(3);
         board.make_move(1);
         board.make_move(0);
-        assert!(board.game_over(board.active));
+        assert!(board.game_over(board.active ^ 1));
     }
 
     #[test]

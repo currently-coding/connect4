@@ -10,25 +10,25 @@ mod board;
 fn main() {
     let mut board = Board::new();
     // board.print();
-    let mut p1 = Engine::new(22);
+    let mut p1 = Engine::new(20);
     // let mut p2 = Engine::new(18);
-    // let mut p2 = Human::new();
+    // let p2 = Human::new();
     let mut m;
     m = p1.get_move(&mut board);
-    // board.make_move(m);
+    board.make_move(m);
     // loop {
     //     m = p1.get_move(&mut board);
     //     board.make_move(m);
-    //     if board.game_over(board.active) {
+    //     if board.game_over(board.active ^ 1) {
     //         println!("P1 won!");
     //         break;
     //     }
     //     m = p2.get_move(&mut board);
     //     board.make_move(m);
-    //     if board.game_over(board.active) {
+    //     if board.game_over(board.active ^ 1) {
     //         println!("P2 won!");
     //         break;
-    //     } else if board.draw() {
+    //     } else if board.full() {
     //         println!("DRAW!");
     //         break;
     //     }
