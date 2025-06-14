@@ -1,6 +1,5 @@
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaChaRng;
-use std::panic;
 
 #[derive(Clone)]
 pub struct Board {
@@ -44,28 +43,22 @@ impl Board {
     }
 
     fn put(&mut self, col: u8) -> u8 {
-        let fill = self.col_height[col as usize];
-        if fill == ROWS {
+        let fill = &mut self.col_height[col as usize];
+        if *fill == ROWS {
             return 0;
         }
-        let square = COLS * col + fill;
+        let square = COLS * col + *fill;
         self.hash ^= self.zobrist_table[self.active][square as usize];
-        let target_mask: u64 = 1u64 << square;
-        self.board[self.active] ^= target_mask;
-        self.col_height[col as usize] += 1;
+        self.board[self.active] ^= 1u64 << square;
+        *fill += 1;
         1
     }
 
     fn remove(&mut self, col: u8) {
-        let fill = self.col_height[col as usize];
-        if fill == 0 {
-            panic!("cannot remove piece from empty column");
-        }
-        let square = COLS * col + fill - 1;
-        self.hash ^= self.zobrist_table[self.active][square as usize];
-        let target_mask: u64 = 1u64 << square;
-        self.board[self.active] ^= target_mask;
         self.col_height[col as usize] -= 1;
+        let square = COLS * col + self.col_height[col as usize];
+        self.hash ^= self.zobrist_table[self.active][square as usize];
+        self.board[self.active] ^= 1u64 << square;
     }
 
     pub fn print(&self) {
@@ -103,31 +96,6 @@ impl Board {
         // right diagonal
         || (bb & bb << 6 & bb << 12 & bb << 18) > 0
     }
-
-    // fn get_col_fill(&self, col: u8) -> u8 {
-    //     if !(0..=ROWS).contains(&col) {
-    //         panic!("Column out of range.")
-    //     }
-    //     let mask: u64 = 0b0111111u64 << (col * COLS);
-    //     let mut bb: u64 = self.occupancy();
-    //     bb &= mask;
-    //     let leading_zeros = bb.leading_zeros();
-    //     if leading_zeros == 64 {
-    //         return 0;
-    //     }
-    //     let fill: u8 = (64 - leading_zeros - bb.trailing_zeros()) as u8;
-    //     fill
-    // }
-    //
-    // pub fn get_moves(&self) -> Vec<u8> {
-    //     let mut moves = Vec::new();
-    //     for col in [3, 2, 4, 1, 5, 0, 6] {
-    //         if self.get_col_fill(col) != ROWS {
-    //             moves.push(col);
-    //         }
-    //     }
-    //     moves
-    // }
 }
 
 fn init_zobrist_table() -> [[u32; (COLS * (ROWS + 1)) as usize]; 2] {

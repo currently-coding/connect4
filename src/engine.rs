@@ -1,6 +1,6 @@
-use std::num::NonZero;
+use std::collections::{HashMap, VecDeque};
 
-use lru::LruCache;
+use nohash_hasher::BuildNoHashHasher;
 
 use crate::{board::Board, ttentry::TTEntry};
 pub struct Engine {
@@ -8,10 +8,13 @@ pub struct Engine {
     pub prune_counter: u32,
     pub tt_counter: u32,
     pub visited_counter: u32,
-    pub seen: LruCache<u32, TTEntry>,
+    pub seen: HashMap<u32, TTEntry, BuildNoHashHasher<u32>>,
+    seen_order: VecDeque<u32>,
     max: i8,
+    seen_size: u64,
 }
 pub const MAX_MOVES: u8 = 42;
+pub const MAX_TABLE_SIZE: u64 = 9_000_000;
 
 impl Engine {
     pub fn new(depth: u8) -> Self {
@@ -21,7 +24,9 @@ impl Engine {
             prune_counter: 0,
             tt_counter: 0,
             visited_counter: 0,
-            seen: LruCache::new(NonZero::new(9000000).unwrap()),
+            seen: HashMap::default(),
+            seen_order: VecDeque::new(),
+            seen_size: 0u64,
         }
     }
 
@@ -101,13 +106,23 @@ impl Engine {
         match self.seen.get(&board.hash) {
             // replace if the current value has a deeper depth
             Some(entry) if depth >= entry.depth() => {
-                self.seen.put(board.hash, TTEntry::new(depth, score, flag)); // updated entry
+                self.insert_tt(board.hash, TTEntry::new(depth, score, flag)); // updated entry
             }
             None => {
-                self.seen.put(board.hash, TTEntry::new(depth, score, flag)); // new entry
+                self.insert_tt(board.hash, TTEntry::new(depth, score, flag)); // new entry
             }
             _ => {}
         }
         score
+    }
+
+    fn insert_tt(&mut self, hash: u32, entry: TTEntry) {
+        if self.seen_size >= MAX_TABLE_SIZE {
+            for _ in 0..1000 {
+                self.seen.remove(&self.seen_order[0]);
+                self.seen_order.pop_front();
+            }
+        }
+        self.seen.insert(hash, entry);
     }
 }
